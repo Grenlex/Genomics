@@ -1,6 +1,7 @@
 import msprime
 import tskit
-from IPython.display import SVG, display
+from IPython.display import SVG
+
 
 class Edge:
     def __init__(self, _child, _parent, _child_time, _parent_time, _left, _right):
