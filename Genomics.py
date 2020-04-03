@@ -16,14 +16,16 @@ class Edge:
 
     def print(self):
         print(
-            "Edge {} -> {}, child time: {:.2f}, parent time: {:.2f}, lenght: {:.2f}, interval: ({:.2f}-{:.2f})".format(
+            "Edge {} -> {}, child time: {:.2f}, parent time: {:.2f}, lenght: {:.2f}, interval: ({:.2f}-{:.2f}), number of mutatuions: {}".format(
                 self.child,
                 self.parent,
                 self.child_time,
                 self.parent_time,
                 self.length,
                 self.left,
-                self.right))
+                self.right,
+                len(self.mutations)
+            ))
 
     def __str__(self):
         return "{}-{}".format(self.child, self.parent)
