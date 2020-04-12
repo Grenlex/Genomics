@@ -35,6 +35,11 @@ class Edge:
         if self.parent.real_time == -1:
             return 0
         return self.parent.real_time - self.child.real_time
+    
+    def imlength(self):
+        if self.parent.real_time == -1:
+            return 0
+        return self.parent.time - self.child.time
 
     def mutations_number(self):
         return len(self.mutations)
@@ -90,12 +95,13 @@ def markTimes(root):
 
 
 def markMutations(edges, nodes, mutationsAndTimes):
+    ##if fact for mutation "time" is its place in DNA
     for nodeId in nodes:
         node = nodes[nodeId]
         node.up_edges.sort(key=lambda edge: edge.left)
 
     for mutation, time in mutationsAndTimes:
-        print("Mutation on node {} with time {}".format(mutation.node, time))
+        ##print("Mutation on node {} with time {}".format(mutation.node, time))
         key = mutation.node
         edgesWithCurrentChild = nodes[key].up_edges
         l_ind = 0  # that is true for all time: edgesWithCurrentChild[l_ind].left <= time
@@ -111,7 +117,7 @@ def markMutations(edges, nodes, mutationsAndTimes):
         assert mutatedEdge.left <= time < mutatedEdge.right
 
         mutatedEdge.mutations.append(mutation)
-        print("Find edge for mutation: {}".format(mutatedEdge))
+        ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE, mutation_rate=MUTATION_RATE)
@@ -131,7 +137,7 @@ for node in treeSequence.nodes():
     nodes[node.id] = Node(node.id, node.time)
 
 for edge in treeSequence.edges():
-    print(edge.child, edge.parent)
+    ##print(edge.child, edge.parent)
     edgeId = edge.id
     child = nodes[edge.child]
     parent = nodes[edge.parent]
@@ -144,7 +150,7 @@ for edge in treeSequence.edges():
     parent.down_edges.append(e)   
     edges[edgeId] = e
 
-print("=======")
+##print("=======")
 root = createRoot(nodes, edges)
 
 markTimes(root)
@@ -152,7 +158,7 @@ markTimes(root)
 mutationsAndTimes = []
 for site in treeSequence.sites():
         for mutation in site.mutations:
-            print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
+            ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
             mutationsAndTimes.append((mutation, site.position))
 
 markMutations(edges, nodes, mutationsAndTimes)
@@ -164,4 +170,9 @@ F = 0.
 for edgeIndex in edges:
     edge = edges[edgeIndex]
     F += math.log(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.length() * (edge.right - edge.left)]))
-print(F)
+print("real time function defenition", F)
+F = 0.
+for edgeIndex in edges:
+    edge = edges[edgeIndex]
+    F += math.log(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.imlength() * (edge.right - edge.left)]))
+print("imtime function defenition", F)
