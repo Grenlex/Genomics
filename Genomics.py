@@ -167,12 +167,12 @@ for edgeIndex in edges:
     edges[edgeIndex].print()
 
 F = 0.
-for edgeIndex in edges:
+for edgeIndex in edges:     
     edge = edges[edgeIndex]
-    F += math.log(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.length() * (edge.right - edge.left)]))
-print("real time function defenition", F)
+    F += pois.logpmf(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.length() * (edge.right - edge.left)])
+print("real time function defenition", F) 
 F = 0.
 for edgeIndex in edges:
     edge = edges[edgeIndex]
-    F += math.log(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.imlength() * (edge.right - edge.left)]))
+    F += pois.logpmf(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.imlength() * (edge.right - edge.left)])
 print("imtime function defenition", F)
