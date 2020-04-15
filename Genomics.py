@@ -169,7 +169,6 @@ markMutations(edges, nodes, mutationsAndTimes)
 for edge in edges.values():
     edge.print()
 
-print(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.length() * (edge.right - edge.left)]))
 F_real = 0.
 for edge in edges.values():
     F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
