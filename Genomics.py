@@ -2,7 +2,7 @@ import msprime
 from IPython.display import SVG, display
 from scipy.stats import poisson as pois
 
-SAMPLE_SIZE = 100
+SAMPLE_SIZE = 10
 Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
@@ -128,7 +128,7 @@ def f_(node, t0):
                 p *= (t0 - child_.time)
         for upEdge_ in node.up_edges:
             parent_ = upEdge_.parent
-            p *= (parent_.time - t0)  # MAY BE WRONG TIME!
+            p *= (parent_.time - t0)
         sum1 += p * mvc
 
     sum2 = 0
@@ -179,14 +179,17 @@ def findRoot(node):
 
     assert f_l * f_r < 0
     reverse = (f_(node, l) > 0)
-    steps = 1000
+    eps = 1e-5
+    stepCounter = 0
 
-    for i in range(steps):
+    while abs(f_(node, l)) > eps and stepCounter < 1e7:
         m = (r + l) / 2
         if (f_(node, m) > 0) ^ reverse:
             r = m
         else:
             l = m
+        stepCounter += 1
+    print(stepCounter)
     return l
 
 
@@ -238,12 +241,12 @@ for edge in edges.values():
 F_real = 0.
 for edge in edges.values():
     F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
-print("Real time function defenition", F_real)
+print("Real time function definition", F_real)
 
 F_im = 0.
 for edge in edges.values():
     F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
-print("Imaginary time function defenition", F_im)
+print("Imaginary time function definition", F_im)
 
 for node in nodes.values():
     t_0 = findRoot(node)
@@ -253,7 +256,7 @@ for node in nodes.values():
     if t_0 != -float("inf"):
         print("t_0 =", t_0)
         print("f'(t_0) =", f_(node, t_0))
-        assert f_(node, t_0) < 1e-5
+        assert f_(node, t_0) < 1e-4
     else:
         print("Node without parents or child")
     print("\n")
