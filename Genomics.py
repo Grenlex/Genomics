@@ -1,7 +1,5 @@
 import msprime
-import tskit
-import math
-from IPython.display import SVG
+from IPython.display import SVG, display
 from scipy.stats import poisson as pois
 
 SAMPLE_SIZE = 10
@@ -9,12 +7,6 @@ Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
-
-try:
-    display
-except:
-    def display(a):
-        print(a)
 
 
 class Node:
@@ -124,6 +116,76 @@ def markMutations(edges, nodes, mutationsAndTimes):
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 
+def f_(node, t0):
+    sum1 = 0
+    for downEdge in node.down_edges:
+        child = downEdge.child
+        mvc = downEdge.mutations_number()
+        p = 1
+        for downEdge_ in node.down_edges:
+            child_ = downEdge_.child
+            if child_.id != child.id:
+                p *= (t0 - child_.time)
+        for upEdge_ in node.up_edges:
+            parent_ = upEdge_.parent
+            p *= (parent_.time - t0)  # MAY BE WRONG TIME!
+        sum1 += p * mvc
+
+    sum2 = 0
+    for upEdge in node.up_edges:
+        parent = upEdge.parent
+        mvp = upEdge.mutations_number()
+        p = 1
+        for upEdge_ in node.up_edges:
+            parent_ = upEdge_.parent
+            if parent_.id != parent.id:
+                p *= (parent_.time - t0)
+        for downEdge_ in node.down_edges:
+            child_ = downEdge_.child
+            p *= (t0 - child_.time)
+        sum2 += p * mvp
+
+    P = 1
+
+    for upEdge in node.up_edges:
+        parent = upEdge.parent
+        P *= (parent.time - t0)
+
+    for downEdge in node.down_edges:
+        child = downEdge.child
+        P *= (t0 - child.time)
+
+    result = sum1 - sum2 + (len(node.down_edges) - len(node.up_edges)) * P
+
+    return result
+
+
+def findRoot(node):
+    if not node.down_edges or not node.up_edges:
+        print("Im bad :(")
+        return -float("inf")
+    print("\n========")
+    print(node)
+    print(node.up_edges)
+    print(node.down_edges)
+    l = node.down_edges[0].child.time
+    r = node.up_edges[0].parent.time
+    f_l = f_(node, l)
+    f_r = f_(node, r)
+    print("f_(l):", f_l)
+    print("f_(r):", f_r)
+    assert f_l * f_r <= 0
+    steps = 100
+    for i in range(steps):
+        m = (r + l) / 2
+        if (f_(node, m) > 0) ^ (f_(node, l) > 0):
+            r = m
+        else:
+            l = m
+    print("========\n")
+    return l
+
+
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
                                 mutation_rate=MUTATION_RATE)
 print(
@@ -178,3 +240,8 @@ F_im = 0.
 for edge in edges.values():
     F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
 print("Imaginary time function defenition", F_im)
+
+for node in nodes.values():
+    t_0 = findRoot(node)
+    if t_0 != -float("inf"):
+        print(f_(node, t_0))
