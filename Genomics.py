@@ -1,18 +1,17 @@
 import msprime
-import tskit
-import math
-from IPython.display import SVG
+from IPython.display import SVG, display
 from scipy.stats import poisson as pois
 
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 100
 Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
 
+
 class Node:
     def __init__(self, _id, _real_time):
-        self.id  =_id
+        self.id = _id
         self.real_time = _real_time
         self.down_edges = []
         self.up_edges = []
@@ -35,8 +34,8 @@ class Edge:
         if self.parent.real_time == -1:
             return 0
         return self.parent.real_time - self.child.real_time
-    
-    def imlength(self):
+
+    def im_length(self):
         if self.parent.real_time == -1:
             return 0
         return self.parent.time - self.child.time
@@ -49,19 +48,18 @@ class Edge:
 
     def __str__(self):
         return "Edge {} -> {}, child time: {:.2f}, parent time: {:.2f}, lenght: {:.2f}, interval: ({:.2f}-{:.2f}), number of mutations: {}".format(
-                self.child,
-                self.parent,
-                self.child.real_time,
-                self.parent.real_time,
-                self.length(),
-                self.left,
-                self.right,
-                self.mutations_number()
-            )
+            self.child,
+            self.parent,
+            self.child.real_time,
+            self.parent.real_time,
+            self.length(),
+            self.left,
+            self.right,
+            self.mutations_number()
+        )
 
     def __repr__(self):
         return "{}-{}".format(self.child, self.parent)
-
 
 
 def createRoot(nodes, edges):
@@ -69,8 +67,7 @@ def createRoot(nodes, edges):
     freeEdgeId = max(edges) + 1
 
     root = Node(rootId, -1)
-    for nodeId in nodes:
-        node = nodes[nodeId]
+    for node in nodes.values():
         if len(node.up_edges) == 0:
             edge = Edge(freeEdgeId, node, root, 0, LENGTH)
             edges[freeEdgeId] = edge
@@ -90,14 +87,13 @@ def markTimes(root):
         markTimes(child)
         root.time = max(root.time, child.time + 1)
 
-    if root.time == -1: # leaf
+    if root.time == -1:  # leaf
         root.time = 0
 
 
 def markMutations(edges, nodes, mutationsAndTimes):
     ##if fact for mutation "time" is its place in DNA
-    for nodeId in nodes:
-        node = nodes[nodeId]
+    for node in nodes.values():
         node.up_edges.sort(key=lambda edge: edge.left)
 
     for mutation, time in mutationsAndTimes:
@@ -120,7 +116,82 @@ def markMutations(edges, nodes, mutationsAndTimes):
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 
-treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE, mutation_rate=MUTATION_RATE)
+def f_(node, t0):
+    sum1 = 0
+    for downEdge in node.down_edges:
+        child = downEdge.child
+        mvc = downEdge.mutations_number()
+        p = 1
+        for downEdge_ in node.down_edges:
+            child_ = downEdge_.child
+            if child_.id != child.id:
+                p *= (t0 - child_.time)
+        for upEdge_ in node.up_edges:
+            parent_ = upEdge_.parent
+            p *= (parent_.time - t0)  # MAY BE WRONG TIME!
+        sum1 += p * mvc
+
+    sum2 = 0
+    for upEdge in node.up_edges:
+        parent = upEdge.parent
+        mvp = upEdge.mutations_number()
+        p = 1
+        for upEdge_ in node.up_edges:
+            parent_ = upEdge_.parent
+            if parent_.id != parent.id:
+                p *= (parent_.time - t0)
+        for downEdge_ in node.down_edges:
+            child_ = downEdge_.child
+            p *= (t0 - child_.time)
+        sum2 += p * mvp
+
+    P = 1
+
+    for upEdge in node.up_edges:
+        parent = upEdge.parent
+        P *= (parent.time - t0)
+
+    for downEdge in node.down_edges:
+        child = downEdge.child
+        P *= (t0 - child.time)
+
+    result = sum1 - sum2 + (len(node.down_edges) - len(node.up_edges)) * P
+
+    return result
+
+
+def findRoot(node):
+    if not node.down_edges or not node.up_edges:
+        return -float("inf")
+
+    highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
+    lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
+
+    l = highestDownEdge.child.time
+    r = lowestUpEdge.parent.time
+
+    f_l = f_(node, l)
+    f_r = f_(node, r)
+    if f_l == 0:
+        return l
+    if f_r == 0:
+        return r
+
+    assert f_l * f_r < 0
+    reverse = (f_(node, l) > 0)
+    steps = 1000
+
+    for i in range(steps):
+        m = (r + l) / 2
+        if (f_(node, m) > 0) ^ reverse:
+            r = m
+        else:
+            l = m
+    return l
+
+
+treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
+                                mutation_rate=MUTATION_RATE)
 print(
     "\n\033[41m                                                            GENOMICS                                                            \033[0m\n")
 print("\n\033[43mSimulating trees\033[0m\n")
@@ -137,7 +208,6 @@ for node in treeSequence.nodes():
     nodes[node.id] = Node(node.id, node.time)
 
 for edge in treeSequence.edges():
-    ##print(edge.child, edge.parent)
     edgeId = edge.id
     child = nodes[edge.child]
     parent = nodes[edge.parent]
@@ -147,32 +217,43 @@ for edge in treeSequence.edges():
         edge.left, edge.right
     )
     child.up_edges.append(e)
-    parent.down_edges.append(e)   
+    parent.down_edges.append(e)
     edges[edgeId] = e
 
-##print("=======")
 root = createRoot(nodes, edges)
 
 markTimes(root)
 
 mutationsAndTimes = []
 for site in treeSequence.sites():
-        for mutation in site.mutations:
-            ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
-            mutationsAndTimes.append((mutation, site.position))
+    for mutation in site.mutations:
+        ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
+        mutationsAndTimes.append((mutation, site.position))
 
 markMutations(edges, nodes, mutationsAndTimes)
 
-for edgeIndex in edges:
-    edges[edgeIndex].print()
+for edge in edges.values():
+    edge.print()
 
-F = 0.
-for edgeIndex in edges:     
-    edge = edges[edgeIndex]
-    F += pois.logpmf(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.length() * (edge.right - edge.left)])
-print("real time function defenition", F) 
-F = 0.
-for edgeIndex in edges:
-    edge = edges[edgeIndex]
-    F += pois.logpmf(pois.pmf(edge.mutations_number(), [MUTATION_RATE * edge.imlength() * (edge.right - edge.left)])
-print("imtime function defenition", F)
+F_real = 0.
+for edge in edges.values():
+    F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
+print("Real time function defenition", F_real)
+
+F_im = 0.
+for edge in edges.values():
+    F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
+print("Imaginary time function defenition", F_im)
+
+for node in nodes.values():
+    t_0 = findRoot(node)
+    print("======")
+    print("node:", node)
+    print("node.time:", node.time)
+    if t_0 != -float("inf"):
+        print("t_0 =", t_0)
+        print("f'(t_0) =", f_(node, t_0))
+        assert f_(node, t_0) < 1e-5
+    else:
+        print("Node without parents or child")
+    print("\n")
