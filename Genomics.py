@@ -160,37 +160,85 @@ def f_(node, t0):
     return result
 
 
-def findRoot(node):
+def findRoot(node, debug=False):
+    from matplotlib import pyplot as plt
+    import numpy as np
     if not node.down_edges or not node.up_edges:
-        return -float("inf")
+        return None
 
     highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
     lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
-    l = highestDownEdge.child.time
-    r = lowestUpEdge.parent.time
+    l = highestDownEdge.child.time + 1e-2
+    r = lowestUpEdge.parent.time - 1e-2
 
+    if debug:
+        print("l, r", l, r)
     f_l = f_(node, l)
     f_r = f_(node, r)
-    if f_l == 0:
-        return l
-    if f_r == 0:
-        return r
 
-    assert f_l * f_r < 0
+    if debug:
+        print("f_l, f_r", f_l, f_r)
+
+        x = np.array([])
+        y = np.array([])
+        for x0 in np.linspace(l, r, endpoint=True, num=100):
+            x = np.append(x, x0)
+            y = np.append(y, f_(node, x0))
+        title = str(node) + " " + " parents: " + str(len(node.up_edges)) + " children: " + \
+                str(len(node.down_edges)) + "\n IM F: " + str(F_im)
+
+    if f_l * f_r >= 0:
+        return None
+
     reverse = (f_(node, l) > 0)
     eps = 1e-5
     stepCounter = 0
-
-    while abs(f_(node, l)) > eps and stepCounter < 1e7:
+    m = (l + r) / 2
+    while abs(f_(node, m)) > eps and stepCounter < 1e4:
         m = (r + l) / 2
         if (f_(node, m) > 0) ^ reverse:
             r = m
         else:
             l = m
         stepCounter += 1
-    print(stepCounter)
-    return l
+        if stepCounter > 1e5:
+            if debug:
+                print("StepCounter overflow")
+                print("Calculated value is not 0 but", f_(node, l))
+    if debug:
+        print("root:", m)
+        plt.clf()
+        plt.title(title)
+        plt.axhline(y=0, color="black")
+        plt.axvline(x=node.time, color="black")
+        plt.plot(x, y, color="green")
+        plt.plot(m, f_(node, m), 'ro')
+        plt.show()
+    return m
+
+
+def updateTimes(nodes, debug):
+    import random
+    keys = list(nodes.values())
+    # random.shuffle(keys)
+    for node in keys:
+        if debug:
+            print("======")
+            print("node:", node)
+            print("node.time:", node.time)
+        t_0 = findRoot(node, debug)
+        if not (t_0 is None):
+            f_t0 = f_(node, t_0)
+            if debug:
+                print("t_0 =", t_0)
+                print("f'(t_0) =", f_(node, t_0))
+            node.time = t_0
+        else:
+            if debug:
+                print("Time shouldn't be changed")
+        if debug:
+            print("\n")
 
 
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
@@ -238,25 +286,15 @@ markMutations(edges, nodes, mutationsAndTimes)
 for edge in edges.values():
     edge.print()
 
-F_real = 0.
-for edge in edges.values():
-    F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
-print("Real time function definition", F_real)
+while 1:
+    F_real = 0.
+    for edge in edges.values():
+        F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
+    print("Real time function definition", F_real)
 
-F_im = 0.
-for edge in edges.values():
-    F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
-print("Imaginary time function definition", F_im)
-
-for node in nodes.values():
-    t_0 = findRoot(node)
-    print("======")
-    print("node:", node)
-    print("node.time:", node.time)
-    if t_0 != -float("inf"):
-        print("t_0 =", t_0)
-        print("f'(t_0) =", f_(node, t_0))
-        assert f_(node, t_0) < 1e-4
-    else:
-        print("Node without parents or child")
-    print("\n")
+    F_im = 0.
+    for edge in edges.values():
+        # print(edge.im_length())
+        F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
+    print("Imaginary time function definition", F_im)
+    updateTimes(nodes, debug=False)
