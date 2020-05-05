@@ -1,3 +1,4 @@
+import random
 import msprime
 from IPython.display import SVG, display
 from scipy.stats import poisson as pois
@@ -7,6 +8,8 @@ Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
+
+EDGE_LEN = 30
 
 
 class Node:
@@ -85,7 +88,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + 1)
+        root.time = max(root.time, child.time + EDGE_LEN)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -219,9 +222,8 @@ def findRoot(node, debug=False):
 
 
 def updateTimes(nodes, debug):
-    import random
     keys = list(nodes.values())
-    # random.shuffle(keys)
+    random.shuffle(keys)
     for node in keys:
         if debug:
             print("======")
