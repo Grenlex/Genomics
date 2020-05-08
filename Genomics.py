@@ -1,4 +1,3 @@
-import random
 import msprime
 from IPython.display import SVG, display
 from scipy.stats import poisson as pois
@@ -8,8 +7,6 @@ Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
-
-EDGE_LEN = 30
 
 
 class Node:
@@ -88,7 +85,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + EDGE_LEN)
+        root.time = max(root.time, child.time + 70)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -158,7 +155,7 @@ def f_(node, t0):
         child = downEdge.child
         P *= (t0 - child.time)
 
-    result = sum1 - sum2 + (len(node.down_edges) - len(node.up_edges)) * P
+    result = sum1 - sum2 + (len(node.up_edges) - len(node.down_edges)) * P
 
     return result
 
@@ -221,15 +218,29 @@ def findRoot(node, debug=False):
     return m
 
 
-def updateTimes(nodes, debug):
+def updateTimes(nodes, edges, debug):
+    import random
     keys = list(nodes.values())
     random.shuffle(keys)
+
     for node in keys:
+        F_imold = 0.
+        for edge in edges.values():
+            # print(edge.im_length())
+            a=node.time
+            F_imold += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
         if debug:
             print("======")
             print("node:", node)
             print("node.time:", node.time)
         t_0 = findRoot(node, debug)
+        plt.clf()
+        plt.title(title)
+        
+        plt.axvline(x=node.time, color="black")
+        plt.plot(x, y, color="green")
+        plt.plot(m, f_(node, m), 'ro')
+        plt.show()
         if not (t_0 is None):
             f_t0 = f_(node, t_0)
             if debug:
@@ -241,6 +252,12 @@ def updateTimes(nodes, debug):
                 print("Time shouldn't be changed")
         if debug:
             print("\n")
+        F_imnew = 0.
+        for edge in edges.values():
+            # print(edge.im_length())
+            F_imnew += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
+        if F_imnew<=F_imold:
+            node.time=a
 
 
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
@@ -288,10 +305,13 @@ markMutations(edges, nodes, mutationsAndTimes)
 for edge in edges.values():
     edge.print()
 
+for i in range(len(nodes)):
+    print(nodes[i].time)
+    
+F_real = 0.
+for edge in edges.values():
+    F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
 while 1:
-    F_real = 0.
-    for edge in edges.values():
-        F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
     print("Real time function definition", F_real)
 
     F_im = 0.
@@ -299,4 +319,4 @@ while 1:
         # print(edge.im_length())
         F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
     print("Imaginary time function definition", F_im)
-    updateTimes(nodes, debug=False)
+    updateTimes(nodes, edges, debug=False)
