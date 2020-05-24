@@ -1,5 +1,6 @@
-import random
 import msprime
+import math
+import random
 from IPython.display import SVG, display
 from scipy.stats import poisson as pois
 
@@ -8,8 +9,7 @@ Ne = 1000
 LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
-
-EDGE_LEN = 70
+Zero_mutation_num=0.01
 
 
 class Node:
@@ -44,7 +44,10 @@ class Edge:
         return self.parent.time - self.child.time
 
     def mutations_number(self):
-        return len(self.mutations)
+        if len(self.mutations)!=0:
+            return len(self.mutations)
+        else:
+            return Zero_mutation_num
 
     def print(self):
         print(self)
@@ -88,7 +91,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + EDGE_LEN)
+        root.time = max(root.time, child.time + 70)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -118,7 +121,17 @@ def markMutations(edges, nodes, mutationsAndTimes):
         mutatedEdge.mutations.append(mutation)
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
-
+def Delete_Root(nodes, edges):
+    Rid=len(nodes)-1
+    num=len(edges)
+    for edge in range(num):
+        if edges[edge].parent.id==Rid:
+            edges.pop(edge)
+    for node in range(len(nodes)):
+        if nodes[node].id==Rid:
+            nodes.pop(node)
+            break
+        
 def f_(node, t0):
     sum1 = 0
     for downEdge in node.down_edges:
@@ -172,8 +185,13 @@ def findRoot(node, debug=False):
     highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
     lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
+    if lowestUpEdge.parent.time ==-1:
+        r=2*node.time-highestDownEdge.child.time - 1e-2
+    else:
+        r = lowestUpEdge.parent.time - 1e-2
     l = highestDownEdge.child.time + 1e-2
-    r = lowestUpEdge.parent.time - 1e-2
+    
+     
 
     if debug:
         print("l, r", l, r)
@@ -222,27 +240,18 @@ def findRoot(node, debug=False):
 
 
 def updateTimes(nodes, edges, debug):
+    import random
     keys = list(nodes.values())
     random.shuffle(keys)
+    c=0
 
     for node in keys:
         F_imold = 0.
         for edge in edges.values():
-            # print(edge.im_length())
-            a=node.time
-            F_imold += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
-        if debug:
-            print("======")
-            print("node:", node)
-            print("node.time:", node.time)
+            if edge.im_length()!=0:
+                F_imold+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+        a=node.time
         t_0 = findRoot(node, debug)
-        plt.clf()
-        plt.title(title)
-        
-        plt.axvline(x=node.time, color="black")
-        plt.plot(x, y, color="green")
-        plt.plot(m, f_(node, m), 'ro')
-        plt.show()
         if not (t_0 is None):
             f_t0 = f_(node, t_0)
             if debug:
@@ -256,10 +265,14 @@ def updateTimes(nodes, edges, debug):
             print("\n")
         F_imnew = 0.
         for edge in edges.values():
-            # print(edge.im_length())
-            F_imnew += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
+            if edge.im_length()!=0:
+                F_imnew+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
         if F_imnew<=F_imold:
             node.time=a
+            #print("aa")
+        else:
+            c+=1
+    print(c)
 
 
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
@@ -304,15 +317,37 @@ for site in treeSequence.sites():
 
 markMutations(edges, nodes, mutationsAndTimes)
 
+Delete_Root(nodes, edges)
+
 for edge in edges.values():
     edge.print()
 
 for i in range(len(nodes)):
+    print(nodes[i].id)
     print(nodes[i].time)
+    print()
     
-F_real = 0.
+#print(Zero_mutation_num)
+F_re = 0.
 for edge in edges.values():
-    F_real += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.length() * (edge.right - edge.left))
+    if  edge.length()!=0:
+        F_re+=math.log((MUTATION_RATE * edge.length()* (edge.right - edge.left))**edge.mutations_number()*math.exp(-1*MUTATION_RATE * edge.length()* (edge.right - edge.left)))
+print("F_real=",F_re)
+F_im=0.
+for edge in edges.values():
+    if edge.im_length()!=0:
+        F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+print("F_im=",F_im)
+while (1):
+    updateTimes(nodes, edges, debug=False)
+    print("F_real=",F_re)
+    F_im=0.
+    for edge in edges.values():
+        if edge.im_length()!=0:
+            F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+    print("F_im=",F_im)
+    print()
+    
 while 1:
     print("Real time function definition", F_real)
 
