@@ -1,8 +1,9 @@
 import msprime
-import math
 import random
+import math
 from IPython.display import SVG, display
 from scipy.stats import poisson as pois
+import numpy as np
 
 SAMPLE_SIZE = 10
 Ne = 1000
@@ -91,7 +92,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + 70)
+        root.time = max(root.time, child.time + 390)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -170,8 +171,16 @@ def f_(node, t0):
     for downEdge in node.down_edges:
         child = downEdge.child
         P *= (t0 - child.time)
+    k = 0
+    for downEdge in node.down_edges:
+        k += downEdge.right - downEdge.left
 
-    result = sum1 - sum2 + (len(node.up_edges) - len(node.down_edges)) * P
+    for upEdge in node.up_edges:
+        k -= upEdge.right - upEdge.left
+
+    k *= MUTATION_RATE
+
+    result = sum1 - sum2 + (k) * P
 
     return result
 
@@ -186,10 +195,11 @@ def findRoot(node, debug=False):
     lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
     if lowestUpEdge.parent.time ==-1:
-        r=2*node.time-highestDownEdge.child.time - 1e-2
+        r=2*node.time-highestDownEdge.child.time - 1e-5
     else:
-        r = lowestUpEdge.parent.time - 1e-2
-    l = highestDownEdge.child.time + 1e-2
+        r = lowestUpEdge.parent.time - 1e-5
+    l = highestDownEdge.child.time + 1e-5
+    
     
      
 
@@ -200,6 +210,7 @@ def findRoot(node, debug=False):
 
     if debug:
         print("f_l, f_r", f_l, f_r)
+        fx, fy = plot_F_IM(node, l, r)
 
         x = np.array([])
         y = np.array([])
@@ -229,13 +240,22 @@ def findRoot(node, debug=False):
                 print("Calculated value is not 0 but", f_(node, l))
     if debug:
         print("root:", m)
-        plt.clf()
+        plt.figure()
+
+        plt.subplot(211)
+        plt.axvline(x=node.time, color="black")
+        plt.plot(fx, fy, color="blue")
+
+        plt.subplot(212)
         plt.title(title)
         plt.axhline(y=0, color="black")
         plt.axvline(x=node.time, color="black")
         plt.plot(x, y, color="green")
         plt.plot(m, f_(node, m), 'ro')
+
+
         plt.show()
+
     return m
 
 
@@ -260,6 +280,7 @@ def updateTimes(nodes, edges, debug):
             node.time = t_0
         else:
             if debug:
+                print(node.id)
                 print("Time shouldn't be changed")
         if debug:
             print("\n")
@@ -274,6 +295,30 @@ def updateTimes(nodes, edges, debug):
             c+=1
     print(c)
 
+    
+def F_IM(edges):
+    F_im = 0.
+    for edge in edges.values():
+        if edge.im_length()!=0:
+            F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+    return F_im
+
+def plot_F_IM(node, l = None, r = None):
+    if l is None:
+        l = node.time * 0.8
+        r = node.time * 1.2
+    vals = 50
+    x = np.zeros(vals)
+    y = np.zeros(vals)
+    beg_time = node.time
+    for i, val in enumerate(np.linspace(l, r, 50)):
+        x[i] = val
+        node.time = val
+        y[i] = F_IM(edges)
+
+    node.time = beg_time
+
+    return x, y
 
 treeSequence = msprime.simulate(sample_size=SAMPLE_SIZE, Ne=Ne, length=LENGTH, recombination_rate=RECOMBINATION_RATE,
                                 mutation_rate=MUTATION_RATE)
@@ -322,10 +367,10 @@ Delete_Root(nodes, edges)
 for edge in edges.values():
     edge.print()
 
-for i in range(len(nodes)):
-    print(nodes[i].id)
-    print(nodes[i].time)
-    print()
+#for i in range(len(nodes)):
+  #  print(nodes[i].id)
+  #  print(nodes[i].time)
+  #  print()
     
 #print(Zero_mutation_num)
 F_re = 0.
@@ -347,13 +392,3 @@ while (1):
             F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
     print("F_im=",F_im)
     print()
-    
-while 1:
-    print("Real time function definition", F_real)
-
-    F_im = 0.
-    for edge in edges.values():
-        # print(edge.im_length())
-        F_im += pois.logpmf(edge.mutations_number(), MUTATION_RATE * edge.im_length() * (edge.right - edge.left))
-    print("Imaginary time function definition", F_im)
-    updateTimes(nodes, edges, debug=False)
