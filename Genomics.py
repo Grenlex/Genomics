@@ -11,6 +11,7 @@ LENGTH = 5e4
 RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
 Zero_mutation_num=0.01
+PRECISION = 1000
 
 
 class Node:
@@ -123,16 +124,16 @@ def markMutations(edges, nodes, mutationsAndTimes):
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 def Delete_Root(nodes, edges):
-    Rid=len(nodes)-1
-    num=len(edges)
-    for edge in range(num):
-        if edges[edge].parent.id==Rid:
-            edges.pop(edge)
-    for node in range(len(nodes)):
-        if nodes[node].id==Rid:
-            nodes.pop(node)
-            break
-        
+    root = nodes.pop()
+    badIds = set()
+    for edgeDown in root.down_edges:
+        child = edgeDown.child
+        badIds.add(edgeDown.id)
+        child.edges_up = [edgeUp for edgeUp in child.edges_up if edgeUp.id != edgeDown.id]
+
+    edges = [edge for edge in edges if edge.id not in badIds]
+    return nodes, edges
+
 def f_(node, t0):
     sum1 = 0
     for downEdge in node.down_edges:
@@ -199,17 +200,15 @@ def findRoot(node, debug=False):
     else:
         r = lowestUpEdge.parent.time - 1e-5
     l = highestDownEdge.child.time + 1e-5
-    
+
     
      
 
     if debug:
         print("l, r", l, r)
-    f_l = f_(node, l)
-    f_r = f_(node, r)
+
 
     if debug:
-        print("f_l, f_r", f_l, f_r)
         fx, fy = plot_F_IM(node, l, r)
 
         x = np.array([])
@@ -220,26 +219,17 @@ def findRoot(node, debug=False):
         title = str(node) + " " + " parents: " + str(len(node.up_edges)) + " children: " + \
                 str(len(node.down_edges)) + "\n IM F: " + str(F_im)
 
-    if f_l * f_r >= 0:
-        return None
-
-    reverse = (f_(node, l) > 0)
-    eps = 1e-5
-    stepCounter = 0
-    m = (l + r) / 2
-    while abs(f_(node, m)) > eps and stepCounter < 1e4:
-        m = (r + l) / 2
-        if (f_(node, m) > 0) ^ reverse:
-            r = m
-        else:
-            l = m
-        stepCounter += 1
-        if stepCounter > 1e5:
-            if debug:
-                print("StepCounter overflow")
-                print("Calculated value is not 0 but", f_(node, l))
+    maxx = -1000
+    best_point = -1
+    time_begin = node.time
+    for point in np.linspace(l, r, PRECISION):
+        node.time = point
+        if F_IM(edges) > maxx:
+            best_point = point
+            maxx = F_IM(edges)
+    node.time = time_begin
     if debug:
-        print("root:", m)
+        print("root:", point)
         plt.figure()
 
         plt.subplot(211)
@@ -251,12 +241,12 @@ def findRoot(node, debug=False):
         plt.axhline(y=0, color="black")
         plt.axvline(x=node.time, color="black")
         plt.plot(x, y, color="green")
-        plt.plot(m, f_(node, m), 'ro')
+        plt.plot(best_point, f_(node, best_point), 'ro')
 
 
         plt.show()
 
-    return m
+    return best_point
 
 
 def updateTimes(nodes, edges, debug):
@@ -288,7 +278,7 @@ def updateTimes(nodes, edges, debug):
         for edge in edges.values():
             if edge.im_length()!=0:
                 F_imnew+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
-        if F_imnew<=F_imold:
+        if F_imnew<F_imold:
             node.time=a
             #print("aa")
         else:
