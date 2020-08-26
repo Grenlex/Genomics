@@ -12,6 +12,7 @@ RECOMBINATION_RATE = 2e-8
 MUTATION_RATE = 6.83e-8
 Zero_mutation_num=0.01
 PRECISION = 1000
+zero_time=390
 
 
 class Node:
@@ -93,7 +94,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + 390)
+        root.time = max(root.time, child.time + zero_time)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -195,7 +196,9 @@ def findRoot(node, debug=False):
     highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
     lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
-    if lowestUpEdge.parent.time ==-1:
+    #не тайм а риал тайм
+    if lowestUpEdge.parent.real_time ==-1:
+        lowestUpEdge.parent.time+=100*zero_time
         r=2*node.time-highestDownEdge.child.time - 1e-5
     else:
         r = lowestUpEdge.parent.time - 1e-5
@@ -235,6 +238,7 @@ def findRoot(node, debug=False):
         plt.subplot(211)
         plt.axvline(x=node.time, color="black")
         plt.plot(fx, fy, color="blue")
+        
 
         plt.subplot(212)
         plt.title(title)
@@ -352,15 +356,15 @@ for site in treeSequence.sites():
 
 markMutations(edges, nodes, mutationsAndTimes)
 
-Delete_Root(nodes, edges)
+#Delete_Root(nodes, edges)
 
 for edge in edges.values():
     edge.print()
 
-#for i in range(len(nodes)):
-  #  print(nodes[i].id)
-  #  print(nodes[i].time)
-  #  print()
+for i in range(len(nodes)):
+    print(nodes[i].id)
+    print(nodes[i].time)
+    print()
     
 #print(Zero_mutation_num)
 F_re = 0.
@@ -374,7 +378,7 @@ for edge in edges.values():
         F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
 print("F_im=",F_im)
 while (1):
-    updateTimes(nodes, edges, debug=False)
+    updateTimes(nodes, edges, debug=True)
     print("F_real=",F_re)
     F_im=0.
     for edge in edges.values():
