@@ -125,14 +125,14 @@ def markMutations(edges, nodes, mutationsAndTimes):
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 def Delete_Root(nodes, edges):
-    root = nodes.pop()
+    root = nodes.pop(max(nodes))
     badIds = set()
     for edgeDown in root.down_edges:
         child = edgeDown.child
         badIds.add(edgeDown.id)
-        child.edges_up = [edgeUp for edgeUp in child.edges_up if edgeUp.id != edgeDown.id]
+        child.up_edges = [edgeUp for edgeUp in child.up_edges if edgeUp.id != edgeDown.id]
 
-    edges = [edge for edge in edges if edge.id not in badIds]
+    edges = {edgeId: edges[edgeId] for edgeId in edges if edgeId not in badIds}
     return nodes, edges
 
 def f_(node, t0):
@@ -356,7 +356,7 @@ for site in treeSequence.sites():
 
 markMutations(edges, nodes, mutationsAndTimes)
 
-#Delete_Root(nodes, edges)
+nodes, edges = Delete_Root(nodes, edges)
 
 for edge in edges.values():
     edge.print()
