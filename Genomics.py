@@ -190,17 +190,16 @@ def f_(node, t0):
 def findRoot(node, debug=False):
     from matplotlib import pyplot as plt
     import numpy as np
-    if not node.down_edges or not node.up_edges:
+    if not node.down_edges :
         return None
 
     highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
-    lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
-    #не тайм а риал тайм
-    if lowestUpEdge.parent.real_time ==-1:
-        lowestUpEdge.parent.time+=100*zero_time
+
+    if not node.up_edges:
         r=2*node.time-highestDownEdge.child.time - 1e-5
     else:
+        lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
         r = lowestUpEdge.parent.time - 1e-5
     l = highestDownEdge.child.time + 1e-5
 
@@ -378,7 +377,7 @@ for edge in edges.values():
         F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
 print("F_im=",F_im)
 while (1):
-    updateTimes(nodes, edges, debug=True)
+    updateTimes(nodes, edges, debug=False)
     print("F_real=",F_re)
     F_im=0.
     for edge in edges.values():
