@@ -13,6 +13,7 @@ MUTATION_RATE = 6.83e-8
 Zero_mutation_num=0.01
 PRECISION = 1000
 zero_time=390
+eps=0.1
 
 
 class Node:
@@ -69,6 +70,20 @@ class Edge:
 
     def __repr__(self):
         return "{}-{}".format(self.child, self.parent)
+    
+    ## пытаюсь написать вывод Im edges подходящий для нас
+    def Imshow(self):
+        print("Edge {} -> {}, child time: {:.2f}, parent time: {:.2f}, lenght: {:.2f}, interval: ({:.2f}-{:.2f}), number of mutations: {}".format(
+            self.child,
+            self.parent,
+            self.child.time,
+            self.parent.time,
+            self.im_length(),
+            self.left,
+            self.right,
+            self.mutations_number()
+        ))
+
 
 
 def createRoot(nodes, edges):
@@ -376,6 +391,7 @@ for edge in edges.values():
     if edge.im_length()!=0:
         F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
 print("F_im=",F_im)
+prevFim=-1000
 while (1):
     updateTimes(nodes, edges, debug=False)
     print("F_real=",F_re)
@@ -385,3 +401,81 @@ while (1):
             F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
     print("F_im=",F_im)
     print()
+    if abs(F_im-prevFim)<eps:
+        break
+    prevFim=F_im
+## получили значения для первого набора мутаций. НАДО НАПИСАТЬ ВЫВОД!!!!!!!
+
+
+for edge in edges.values():
+    edge.Imshow()
+
+
+
+
+## теперь выкидываем часть мутаций, и начинаем заново
+edges = {}
+nodes = {}
+
+for node in treeSequence.nodes():
+    nodes[node.id] = Node(node.id, node.time)
+
+for edge in treeSequence.edges():
+    edgeId = edge.id
+    child = nodes[edge.child]
+    parent = nodes[edge.parent]
+    e = Edge(
+        edgeId,
+        child, parent,
+        edge.left, edge.right
+    )
+    child.up_edges.append(e)
+    parent.down_edges.append(e)
+    edges[edgeId] = e
+
+root = createRoot(nodes, edges)
+
+markTimes(root)
+random.shuffle(mutationsAndTimes)
+mutationsAndTimes=mutationsAndTimes[:len(mutationsAndTimes)//10]
+for site in treeSequence.sites():
+    for mutation in site.mutations:
+        ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
+        mutationsAndTimes.append((mutation, site.position))
+
+markMutations(edges, nodes, mutationsAndTimes)
+
+nodes, edges = Delete_Root(nodes, edges)
+
+for edge in edges.values():
+    edge.print()
+
+for i in range(len(nodes)):
+    print(nodes[i].id)
+    print(nodes[i].time)
+    print()
+    
+#print(Zero_mutation_num)
+F_re = 0.
+for edge in edges.values():
+    if  edge.length()!=0:
+        F_re+=math.log((MUTATION_RATE * edge.length()* (edge.right - edge.left))**edge.mutations_number()*math.exp(-1*MUTATION_RATE * edge.length()* (edge.right - edge.left)))
+print("F_real=",F_re)
+F_im=0.
+for edge in edges.values():
+    if edge.im_length()!=0:
+        F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+print("F_im=",F_im)
+prevFim=-1000
+while (1):
+    updateTimes(nodes, edges, debug=False)
+    print("F_real=",F_re)
+    F_im=0.
+    for edge in edges.values():
+        if edge.im_length()!=0:
+            F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+    print("F_im=",F_im)
+    print()
+    if abs(F_im-prevFim)<eps:
+        break
+    prevFim=F_im
