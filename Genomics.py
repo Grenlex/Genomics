@@ -381,11 +381,7 @@ for edge in edges.values():
  #   print(nodes[i].time)
  #   print()
     
-    
-# ставим реальные времена на места воображаемых
-for i in range(len(nodes)):
-    nodes[i].time=nodes[i].real_time
- 
+#print(Zero_mutation_num)
 F_re = 0.
 for edge in edges.values():
     if  edge.length()!=0:
@@ -428,3 +424,99 @@ diviations_from_mean_diviations=[]
 for i in diviations:
     diviations_from_mean_diviations.append(i/mean_diviation)
 print(*diviations_from_mean_diviations)
+
+
+
+
+## теперь выкидываем часть мутаций, и начинаем заново
+print()
+print()
+print('======================================================================================')
+print('Test 2')
+edges = {}
+nodes = {}
+
+for node in treeSequence.nodes():
+    nodes[node.id] = Node(node.id, node.time)
+
+for edge in treeSequence.edges():
+    edgeId = edge.id
+    child = nodes[edge.child]
+    parent = nodes[edge.parent]
+    e = Edge(
+        edgeId,
+        child, parent,
+        edge.left, edge.right
+    )
+    child.up_edges.append(e)
+    parent.down_edges.append(e)
+    edges[edgeId] = e
+
+root = createRoot(nodes, edges)
+
+markTimes(root)
+random.shuffle(mutationsAndTimes)
+mutationsAndTimes=mutationsAndTimes[:len(mutationsAndTimes)//10]
+for site in treeSequence.sites():
+    for mutation in site.mutations:
+        ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
+        mutationsAndTimes.append((mutation, site.position))
+print('This test mutation number:', len(mutationsAndTimes))
+
+
+markMutations(edges, nodes, mutationsAndTimes)
+
+nodes, edges = Delete_Root(nodes, edges)
+
+for edge in edges.values():
+    edge.print()
+
+#for i in range(len(nodes)):
+ #   print(nodes[i].id)
+ #   print(nodes[i].time)
+ #   print()
+    
+#print(Zero_mutation_num)
+F_re = 0.
+for edge in edges.values():
+    if  edge.length()!=0:
+        F_re+=math.log((MUTATION_RATE * edge.length()* (edge.right - edge.left))**edge.mutations_number()*math.exp(-1*MUTATION_RATE * edge.length()* (edge.right - edge.left)))
+print("F_real=",F_re)
+F_im=0.
+for edge in edges.values():
+    if edge.im_length()!=0:
+        F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+print("F_im=",F_im)
+prevFim=-1000
+while (1):
+    updateTimes(nodes, edges, debug=False)
+    print("F_real=",F_re)
+    F_im=0.
+    for edge in edges.values():
+        if edge.im_length()!=0:
+            F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
+    print("F_im=",F_im)
+    print()
+    if abs(F_im-prevFim)<eps:
+        break
+    prevFim=F_im
+
+    
+for edge in edges.values():
+    edge.Imshow()
+
+    
+# считаем отколнение
+diviations=[]
+for edge in edges.values():
+    print(edge.child,'->',edge.parent,edge.im_length(), edge.length())
+    print('diviation = ', edge.im_length()/edge.length())
+    diviations.append(edge.im_length()/edge.length())
+mean_diviation=sum(diviations)/len(edges)
+print('mean_diviation = ', mean_diviation)
+
+diviations_from_mean_diviations=[]
+for i in diviations:
+    diviations_from_mean_diviations.append(i/mean_diviation)
+print(*diviations_from_mean_diviations)
+
