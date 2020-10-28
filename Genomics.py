@@ -5,15 +5,12 @@ from IPython.display import SVG, display
 from scipy.stats import poisson as pois
 import numpy as np
 
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 20
 Ne = 1000
 LENGTH = 5e2
 RECOMBINATION_RATE = 2e-8
-MUTATION_RATE = 6.83e-8
+MUTATION_RATE = 6.83e-7
 Zero_mutation_num=0.01
-PRECISION = 1000
-zero_time=390
-eps=0.1
 
 
 class Node:
@@ -70,20 +67,6 @@ class Edge:
 
     def __repr__(self):
         return "{}-{}".format(self.child, self.parent)
-    
-    ## пытаюсь написать вывод Im edges подходящий для нас
-    def Imshow(self):
-        print("Edge {} -> {}, child time: {:.2f}, parent time: {:.2f}, lenght: {:.2f}, interval: ({:.2f}-{:.2f}), number of mutations: {}".format(
-            self.child,
-            self.parent,
-            self.child.time,
-            self.parent.time,
-            self.im_length(),
-            self.left,
-            self.right,
-            self.mutations_number()
-        ))
-
 
 
 def createRoot(nodes, edges):
@@ -109,7 +92,7 @@ def markTimes(root):
     for downEdge in root.down_edges:
         child = downEdge.child
         markTimes(child)
-        root.time = max(root.time, child.time + zero_time)
+        root.time = max(root.time, child.time + 200)
 
     if root.time == -1:  # leaf
         root.time = 0
@@ -140,21 +123,22 @@ def markMutations(edges, nodes, mutationsAndTimes):
         ##print("Find edge for mutation: {}".format(mutatedEdge))
 
 def Delete_Root(nodes, edges):
-    root = nodes.pop(max(nodes))
-    badIds = set()
-    for edgeDown in root.down_edges:
-        child = edgeDown.child
-        badIds.add(edgeDown.id)
-        child.up_edges = [edgeUp for edgeUp in child.up_edges if edgeUp.id != edgeDown.id]
-
-    edges = {edgeId: edges[edgeId] for edgeId in edges if edgeId not in badIds}
-    return nodes, edges
-
+    Rid=len(nodes)-1
+    num=len(edges)
+    for edge in range(num):
+        if edges[edge].parent.id==Rid:
+            edges.pop(edge)
+    for node in range(len(nodes)):
+        if nodes[node].id==Rid:
+            nodes.pop(node)
+            break
+        
 def f_(node, t0):
     sum1 = 0
     for downEdge in node.down_edges:
         child = downEdge.child
         mvc = downEdge.mutations_number()
+        dna = downEdge.right - downEdge.left
         p = 1
         for downEdge_ in node.down_edges:
             child_ = downEdge_.child
@@ -163,12 +147,13 @@ def f_(node, t0):
         for upEdge_ in node.up_edges:
             parent_ = upEdge_.parent
             p *= (parent_.time - t0)
-        sum1 += p * mvc
+        sum1 += p * mvc * dna
 
     sum2 = 0
     for upEdge in node.up_edges:
         parent = upEdge.parent
         mvp = upEdge.mutations_number()
+        dna = upEdge.right - upEdge.left
         p = 1
         for upEdge_ in node.up_edges:
             parent_ = upEdge_.parent
@@ -177,55 +162,56 @@ def f_(node, t0):
         for downEdge_ in node.down_edges:
             child_ = downEdge_.child
             p *= (t0 - child_.time)
-        sum2 += p * mvp
+        sum2 += p * mvp * dna
 
-    P = 1
+    P = 0
 
     for upEdge in node.up_edges:
         parent = upEdge.parent
-        P *= (parent.time - t0)
+        dna = upEdge.right - upEdge.left
+        P += (parent.time - t0) * dna
 
     for downEdge in node.down_edges:
         child = downEdge.child
-        P *= (t0 - child.time)
+        dna = downEdge.right - downEdge.left
+        P += (t0 - child.time) * dna
+
     k = 0
     for downEdge in node.down_edges:
-        k += downEdge.right - downEdge.left
+        k -= downEdge.right - downEdge.left
 
     for upEdge in node.up_edges:
-        k -= upEdge.right - upEdge.left
+        k += upEdge.right - upEdge.left
 
-    k *= MUTATION_RATE
-
-    result = sum1 - sum2 + (k) * P
+    result = sum1 - sum2 - MUTATION_RATE * k * P
 
     return result
-
 
 def findRoot(node, debug=False):
     from matplotlib import pyplot as plt
     import numpy as np
-    if not node.down_edges :
+    if not node.down_edges or not node.up_edges:
         return None
 
     highestDownEdge = max(node.down_edges, key=lambda elem: elem.child.time)
+    lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
 
-
-    if not node.up_edges:
+    if lowestUpEdge.parent.time ==-1:
         r=2*node.time-highestDownEdge.child.time - 1e-5
     else:
-        lowestUpEdge = min(node.up_edges, key=lambda elem: elem.parent.time)
         r = lowestUpEdge.parent.time - 1e-5
     l = highestDownEdge.child.time + 1e-5
-
+    
     
      
 
     if debug:
         print("l, r", l, r)
-
+    f_l = f_(node, l)
+    f_r = f_(node, r)
 
     if debug:
+        print("f_l, f_r", f_l, f_r)
         fx, fy = plot_F_IM(node, l, r)
 
         x = np.array([])
@@ -236,35 +222,43 @@ def findRoot(node, debug=False):
         title = str(node) + " " + " parents: " + str(len(node.up_edges)) + " children: " + \
                 str(len(node.down_edges)) + "\n IM F: " + str(F_im)
 
-    maxx = -1000
-    best_point = -1
-    time_begin = node.time
-    for point in np.linspace(l, r, PRECISION):
-        node.time = point
-        if F_IM(edges) > maxx:
-            best_point = point
-            maxx = F_IM(edges)
-    node.time = time_begin
+    if f_l * f_r >= 0:
+        return None
+
+    reverse = (f_(node, l) > 0)
+    eps = 1e-5
+    stepCounter = 0
+    m = (l + r) / 2
+    while abs(f_(node, m)) > eps and stepCounter < 1e4:
+        m = (r + l) / 2
+        if (f_(node, m) > 0) ^ reverse:
+            r = m
+        else:
+            l = m
+        stepCounter += 1
+        if stepCounter > 1e5:
+            if debug:
+                print("StepCounter overflow")
+                print("Calculated value is not 0 but", f_(node, l))
     if debug:
-        print("root:", point)
+        print("root:", m)
         plt.figure()
 
         plt.subplot(211)
         plt.axvline(x=node.time, color="black")
         plt.plot(fx, fy, color="blue")
-        
 
         plt.subplot(212)
         plt.title(title)
         plt.axhline(y=0, color="black")
         plt.axvline(x=node.time, color="black")
         plt.plot(x, y, color="green")
-        plt.plot(best_point, f_(node, best_point), 'ro')
+        plt.plot(m, f_(node, m), 'ro')
 
 
         plt.show()
 
-    return best_point
+    return m
 
 
 def updateTimes(nodes, edges, debug):
@@ -296,7 +290,7 @@ def updateTimes(nodes, edges, debug):
         for edge in edges.values():
             if edge.im_length()!=0:
                 F_imnew+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
-        if F_imnew<F_imold:
+        if F_imnew<=F_imold:
             node.time=a
             #print("aa")
         else:
@@ -367,25 +361,26 @@ for site in treeSequence.sites():
     for mutation in site.mutations:
         ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
         mutationsAndTimes.append((mutation, site.position))
-print('This test mutation number:', len(mutationsAndTimes))
 
 markMutations(edges, nodes, mutationsAndTimes)
 
-nodes, edges = Delete_Root(nodes, edges)
+Delete_Root(nodes, edges)
 
 for edge in edges.values():
     edge.print()
 
 #for i in range(len(nodes)):
- #   print(nodes[i].id)
- #   print(nodes[i].time)
- #   print()
-    
-    
-# ставим реальные времена на места воображаемых
+  #  print(nodes[i].id)
+  #  print(nodes[i].time)
+  #  print()
+nodes[18].time=nodes[18].real_time
+
 for i in range(len(nodes)):
-    nodes[i].time=nodes[i].real_time
- 
+    print(nodes[i].id)
+    print(nodes[i].time)
+    print()
+
+#print(Zero_mutation_num)
 F_re = 0.
 for edge in edges.values():
     if  edge.length()!=0:
@@ -396,9 +391,8 @@ for edge in edges.values():
     if edge.im_length()!=0:
         F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
 print("F_im=",F_im)
-prevFim=-1000
 while (1):
-    updateTimes(nodes, edges, debug=False)
+    updateTimes(nodes, edges, debug=True)
     print("F_real=",F_re)
     F_im=0.
     for edge in edges.values():
@@ -406,25 +400,4 @@ while (1):
             F_im+=math.log((MUTATION_RATE * edge.im_length()* (edge.right - edge.left))**edge.mutations_number()*math.exp((-1)*MUTATION_RATE * edge.im_length()* (edge.right - edge.left)))
     print("F_im=",F_im)
     print()
-    if abs(F_im-prevFim)<eps:
-        break
-    prevFim=F_im
-## получили значения для первого набора мутаций.
-
-
-for edge in edges.values():
-    edge.Imshow()
-
-# считаем отколнение
-diviations=[]
-for edge in edges.values():
-    print(edge.child,'->',edge.parent,edge.im_length(), edge.length())
-    print('diviation = ', edge.im_length()/edge.length())
-    diviations.append(edge.im_length()/edge.length())
-mean_diviation=sum(diviations)/len(edges)
-print('mean_diviation = ', mean_diviation)
-
-diviations_from_mean_diviations=[]
-for i in diviations:
-    diviations_from_mean_diviations.append(i/mean_diviation)
-print(*diviations_from_mean_diviations)
+    
