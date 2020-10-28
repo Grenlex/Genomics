@@ -457,10 +457,6 @@ root = createRoot(nodes, edges)
 markTimes(root)
 random.shuffle(mutationsAndTimes)
 mutationsAndTimes=mutationsAndTimes[:len(mutationsAndTimes)//10]
-for site in treeSequence.sites():
-    for mutation in site.mutations:
-        ##print("Mutation @ position {:.2f} over node {}".format(site.position, mutation.node))
-        mutationsAndTimes.append((mutation, site.position))
 print('This test mutation number:', len(mutationsAndTimes))
 
 
